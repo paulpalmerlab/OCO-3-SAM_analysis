@@ -37,6 +37,10 @@ def readxco2(InFileName):
     surface_pressure_apriori_fph = np.array(data_l2['/RetrievalResults/surface_pressure_apriori_fph'])
     co2_vertical_gradient_delta  = np.array(data_l2['/RetrievalResults/co2_vertical_gradient_delta'])
     aerosol_aod                  = np.array(data_l2['/AerosolResults/aerosol_aod'])
+    post_o2_column               = np.array(data_l2['/RetrievalResults/retrieved_o2_column'])
+
+    air_column = np.zeros(len(post_o2_column))
+    air_column = np.divide(post_o2_column,0.20947)
 
     dP_fph = np.subtract(surface_pressure_fph, surface_pressure_apriori_fph)
 
@@ -105,9 +109,10 @@ def readxco2(InFileName):
     xco2use = xco2[ind]
     latuse  = lat[ind]
     lonuse  = lon[ind]
+    aircolumn  = air_column[ind]
     surface_pressure_fph = surface_pressure_fph[ind]
 
-    return xco2use, latuse, lonuse, obsmonth, surface_pressure_fph
+    return xco2use, latuse, lonuse, obsmonth, surface_pressure_fph, aircolumn
     
 
 def convertodiacemissionunits(inQ,INmonth):
@@ -306,36 +311,47 @@ def filterandconvertno2(no2,latno2,lonno2,qa):
 def writescreenstring(a, b): return '{:6.1f}'.format(a)+'$\pm$'+'{:6.1f}'.format(b)+' TgCO2/yr'    
 
 
-def calc_ime(odiacco2flux,xco2grid,MEANWINDSPEED,Ldimension):
+def calc_ime(odiacco2flux,xco2grid,aircolumngrid,MEANWINDSPEED,Ldimension):
 
     # ODIAC CO2 fluxes have units of gCO2/km2/s
     # Return TgCO2/yr
 
-    xco2grid = np.reshape(xco2grid,-1)
-    ind = np.where(~np.isnan(xco2grid))
-    xco2grid = xco2grid[ind]
-
-    # Convert DXCO2 to mole fraction
-    tmp = np.divide(xco2grid,1e6)
-    # Number density of air at surface
-    rho_air = 2.69e25                       # molec/m^3 NOTE FIXED NEEDS ADJUSTING RE SURFACE PRESSURE; use O2?
-    rho_air = np.multiply(rho_air,1e9)      # molec/km^3
+    Mw_air = 28.9628
+    Mw_co2 = 44.01
+    Mw_ratio = Mw_co2/Mw_air
     Av = 6.023e23                           # Avagrado's number molecules/mole        
-    tmp = np.multiply(tmp,rho_air)          # molec CO2/km^2
-    tmp = np.divide(tmp,Av)                 # mole CO2/km^2
-    tmp = np.multiply(tmp,44/12.)           # g CO2/km^2
+        
+    xco2grid      = np.reshape(xco2grid,-1)
+    aircolumngrid = np.reshape(aircolumngrid,-1)
 
+    ind = np.where(~np.isnan(xco2grid) & (xco2grid>0)) # remove the second criterion when L2 filter is correctly applied
+    xco2grid = xco2grid[ind]
+    aircolumngrid = aircolumngrid[ind]
+
+    
+    # Convert DXCO2 (ppb) to mole fraction
+    tmp = np.divide(xco2grid,1e6)
+
+    # Convert molec/cm2 column air density to kg/m2
+    airrho = np.divide(aircolumngrid,Av) # moles/cm2
+    airrho = np.multiply(airrho,Mw_air)   # g/cm2
+    airrho = np.divide(airrho,1e3)       # kg/cm2
+    airrho = np.multiply(airrho,1e4)     # kg/m2
+
+    co2rho = np.multiply(airrho,tmp)     # kg/m2
+    co2rho = np.multiply(Mw_ratio,airrho)# kg CO2/m2
+    
     # MEANWINDSPEED in m/s - used 1e3 to convert to km/s
-    #alpha1 = 1.0; alpha2 = 0.6
-    #U_eff = alpha1 * np.log10(MEANWINDSPEED) + alpha2
+    alpha1 = 1.0; alpha2 = 0.6
+    U_eff = alpha1 * np.log10(MEANWINDSPEED) + alpha2
 
-    U_eff = MEANWINDSPEED
+    #U_eff = MEANWINDSPEED
 
-    print(np.nansum(tmp)*3600*24*365/1e12,U_eff,Ldimension*1000)
+    #print(np.nansum(tmp)*3600*24*365/1e12,U_eff,Ldimension*1000)
     
     # L = dimension of domain
-    IME = np.nansum(tmp)*3600*24*365/1e12 * U_eff/(Ldimension*1000)
-    
+    IME = np.nansum(co2rho)*3600*24*365/1e12 * U_eff/(Ldimension*1000)
+
     return np.nansum(odiacco2flux)*3600*24*365/1e12, IME
 
 
