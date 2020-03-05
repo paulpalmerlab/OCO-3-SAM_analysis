@@ -31,17 +31,17 @@ ntargets = len(targets)
 #InOCO3FileName = 'Isfahan_Iran/oco3_L2DiaSC_03630a_191224_B10106_200205125150s.h5'
 
 # Isfahan Iran
-City = 'oco3_L2_03630a_fossil0000/' ; useextent = [51,52,32,33]
-# Buenos Aires, Argentina
-City = 'oco3_L2_02194a_fossil0035/' ; useextent = [-60,-58,-36,-34]
-# Buenos Aires, Argentina
-City = 'oco3_L2_03962a_fossil0035/' ; useextent = [-60,-58,-36,-34]
-# Delhi
-City = 'oco3_L2_02450a_fossil0029/' ; useextent = [75,78,27.5,29.5]
+City = 'oco3_L2_03630a_fossil0000/' ; useextent = [51,52,32,33]; targetcentre = [51.6660,32.6539]; cityname = 'Isfahan'
+## Buenos Aires, Argentina
+#City = 'oco3_L2_02194a_fossil0035/' ; useextent = [-60,-58,-36,-34]; targetcentre = [-58.3816,-34.6037]; cityname = 'Buenos_Aires1'
+## Buenos Aires, Argentina
+#City = 'oco3_L2_03962a_fossil0035/' ; useextent = [-60,-58,-36,-34]; targetcentre = [-58.3816,-34.6037]; cityname = 'Buenos_Aires2'
+## Delhi
+#City = 'oco3_L2_02450a_fossil0029/' ; useextent = [75,78,27.5,29.5]; targetcentre = [77.1025,28.7041]; cityname = 'Delhi'
 ## Tehran Iran 1
-#City = 'oco3_L2_02482a_fossil0014/' ; useextent = [50,52,35,36.5]
+#City = 'oco3_L2_02482a_fossil0014/' ; useextent = [50,52,35,36.5]; targetcentre = [51.3890,35.6892]; cityname = 'Tehran1'
 ## Tehran Iran 2
-#City = 'oco3_L2_02543a_fossil0014/' ; useextent = [50,52,35,36.5]
+#City = 'oco3_L2_02543a_fossil0014/' ; useextent = [50,52,35,36.5]; targetcentre = [51.3890,35.6892]; cityname = 'Tehran2'
 
 
 
@@ -71,7 +71,7 @@ uwind, vwind, metlat, metlon = readmet(InGEOSFileName)
 # Read OCO-3 data
 #-------------------------
 
-xco2use, latxco2, lonxco2, obsmonth, spress_oco3 = readxco2(InOCO3FileName)
+xco2use, latxco2, lonxco2, obsmonth, spress_oco3, aircolumn = readxco2(InOCO3FileName)
 
 #------------------------- 
 #  ____  _____ _____ ___ _   _ _____   ____   ___  __  __    _    ___ _   _ 
@@ -96,7 +96,8 @@ ODIAClonsDOMAIN, ODIAClatsDOMAIN = definecommongrid(extent)
 # Move OCO-3 data on a regular 1km x 1km grid
 #-------------------------
 
-newgrid, nobs = regridoco3xco2(ODIAClonsDOMAIN, ODIAClatsDOMAIN,xco2use,latxco2,lonxco2)
+newgrid, nobs       = regridoco3xco2(ODIAClonsDOMAIN, ODIAClatsDOMAIN,xco2use,latxco2,lonxco2)
+aircolumngrid, nobs = regridoco3xco2(ODIAClonsDOMAIN, ODIAClatsDOMAIN,aircolumn,latxco2,lonxco2)
 
 spress_oco3_grid, nobs = regridoco3xco2(ODIAClonsDOMAIN, ODIAClatsDOMAIN,spress_oco3,latxco2,lonxco2)
 
@@ -142,14 +143,18 @@ v_max_oco3 = np.nanmedian([newgrid]) + np.nanstd([newgrid])
 colors = newgrid
 
 newgrid = np.transpose(newgrid)
+aircolumngrid = np.transpose(aircolumngrid)
 
 uselabel = 'OCO-3 $\Delta$XCO$_2$ (ppm)'
 plotdata(ax1,fig1,ODIAClonsDOMAIN,ODIAClatsDOMAIN,extent,newgrid,\
          colors,v_min_oco3,v_max_oco3,uselabel,usecontour=1,no2flag=0)    
 ax1.set_title(InOCO3FileName)
 
-ax1.plot(targets[0][0],targets[0][1],'ko',markersize=10,markerfacecolor='none')
-ax1.plot(targets[1][0],targets[1][1],'ko',markersize=10,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=10,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=20,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=40,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=80,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=100,markerfacecolor='none')    
 
 #-------------------------
 # PLOT CORRESPONDING GC winds
@@ -194,17 +199,25 @@ for ii in np.arange(len(ODIAClatsDOMAIN)):
 #            VWIND[ii,jj] = np.nan
 
 
-ax3.quiver(X,Y,UWIND,VWIND,\
+vectorwind = ax3.quiver(X,Y,UWIND,VWIND,\
            scale=5,scale_units='inches',color='black',alpha=0.5)
+ypos = np.mean(useextent[2:3]); xpos = np.mean(useextent[0:1])
+dy   = np.abs(useextent[2]-useextent[3]); dx = np.abs(useextent[1]-useextent[0])
+qk = plt.quiverkey(vectorwind, xpos, ypos+0.25*dy, 1, r'$1 \frac{m}{s}$', labelpos='E',
+                   coordinates='data')
+
 
 gl = ax3.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-                  linewidth=2, color='gray', alpha=0.5, linestyle='--')
+                  linewidth=2, color='gray', alpha=0.25, linestyle='--')
 gl.xlabels_top = False
 gl.ylabels_right = False
 
-ax1.plot(targets[0][0],targets[0][1],'ko',markersize=10,markerfacecolor='none')
-ax1.plot(targets[1][0],targets[1][1],'ko',markersize=10,markerfacecolor='none')
 
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=10,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=20,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=40,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=80,markerfacecolor='none')
+ax1.plot(targetcentre[0],targetcentre[1],'ko',markersize=100,markerfacecolor='none')    
 
 
 winddir_target = []
@@ -237,15 +250,18 @@ uselabel = 'TROPOMI NO$_2$ (10$^{16}$ molec/cm$^2$)'
 plotdata(ax2,fig1,lonno2,latno2,extent,no2,colors,v_min,v_max,uselabel,usecontour=0,no2flag=1)
 ax2.set_title(InNO2FileName)
 
-ax2.plot(targets[0][0],targets[0][1],'ko',markersize=10,markerfacecolor='none')
-ax2.plot(targets[1][0],targets[1][1],'ko',markersize=10,markerfacecolor='none')
+ax2.plot(targetcentre[0],targetcentre[1],'ko',markersize=10,markerfacecolor='none')
+ax2.plot(targetcentre[0],targetcentre[1],'ko',markersize=20,markerfacecolor='none')
+ax2.plot(targetcentre[0],targetcentre[1],'ko',markersize=40,markerfacecolor='none')
+ax2.plot(targetcentre[0],targetcentre[1],'ko',markersize=80,markerfacecolor='none')
+ax2.plot(targetcentre[0],targetcentre[1],'ko',markersize=100,markerfacecolor='none')    
 
 #-------------------------
 # Read ODIAC data
 #-------------------------
 
 odiac_outfile = 'odiac.'+'{}'.format(obsmonth)+'.npz'
-#
+
 #tmp = ['01','02','03','04','05','06',\
 #       '07','08','09','10','11','12']
 #
@@ -298,10 +314,15 @@ print(np.shape(odiaclons),np.shape(odiaclats))
 print(np.shape(newgrid),np.shape(odiacco2flux))
 #sys.exit()
 
+odiacoutsideoco3 = np.zeros([len(odiaclats),len(odiaclons)])
+odiacoutsideoco3[:,:] = np.nan
 
 for ii in np.arange(len(odiaclats)):
     for jj in np.arange(len(odiaclons)):
-        if np.isnan(newgrid[ii,jj]): odiacco2flux[ii,jj] = np.nan
+        if np.isnan(newgrid[ii,jj]):
+            odiacoutsideoco3[ii,jj] = odiacco2flux[ii,jj]
+            odiacco2flux[ii,jj] = np.nan
+            aircolumngrid[ii,jj] = np.nan
 
 
 
@@ -317,12 +338,22 @@ if odiacdatapoints > 0:
     #odiacco2flux[ind] = np.nan
 
     from matplotlib.colors import LogNorm
-    
+
+    surfemiss1 = ax4.pcolor(X,Y,odiacoutsideoco3,\
+                            transform=ccrs.PlateCarree(),\
+                            norm=LogNorm(vmin=np.nanmin(co2flux),vmax=np.nanmax(co2flux)),\
+                            vmin=10,vmax=1e3,\
+                            cmap=plt.cm.get_cmap('gray'),alpha=0.5)
+        
     surfemiss = ax4.pcolor(X,Y,odiacco2flux,\
                                transform=ccrs.PlateCarree(),\
                                norm=LogNorm(vmin=np.nanmin(co2flux),vmax=np.nanmax(co2flux)),\
                                vmin=10,vmax=1e3,\
                                cmap=plt.cm.get_cmap('rainbow'))
+
+    #circle1 = plt.Circle((targetcentre[0],targetcentre[1]), 20, color='white', fill=False)
+    #ax4.add_artist(circle1)
+
     
     gl2 = ax4.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                         linewidth=2, color='gray', alpha=0.5, linestyle='--')
@@ -335,8 +366,13 @@ if odiacdatapoints > 0:
         
     ax4.coastlines(resolution='50m', color='black', linewidth=1)
 
-    ax4.plot(targets[0][0],targets[0][1],'ko',markersize=10,markerfacecolor='none')
-    ax4.plot(targets[1][0],targets[1][1],'ko',markersize=10,markerfacecolor='none')
+
+
+    ax4.plot(targetcentre[0],targetcentre[1],'ko',markersize=10,markerfacecolor='none')
+    ax4.plot(targetcentre[0],targetcentre[1],'ko',markersize=20,markerfacecolor='none')
+    ax4.plot(targetcentre[0],targetcentre[1],'ko',markersize=40,markerfacecolor='none')
+    ax4.plot(targetcentre[0],targetcentre[1],'ko',markersize=80,markerfacecolor='none')
+    ax4.plot(targetcentre[0],targetcentre[1],'ko',markersize=100,markerfacecolor='none')    
 
 #-------------------------
 # Plot ODIAC XCO2 after making some assumptions
@@ -391,10 +427,11 @@ if odiacdatapoints > 0:
     
     ax5.coastlines(resolution='50m', color='black', linewidth=1)
 
-    ax5.plot(targets[0][0],targets[0][1],'ko',markersize=10,markerfacecolor='none')
-    ax5.plot(targets[1][0],targets[1][1],'ko',markersize=10,markerfacecolor='none') 
-
-
+    ax5.plot(targetcentre[0],targetcentre[1],'ko',markersize=10,markerfacecolor='none')
+    ax5.plot(targetcentre[0],targetcentre[1],'ko',markersize=20,markerfacecolor='none')
+    ax5.plot(targetcentre[0],targetcentre[1],'ko',markersize=40,markerfacecolor='none')
+    ax5.plot(targetcentre[0],targetcentre[1],'ko',markersize=80,markerfacecolor='none')
+    ax5.plot(targetcentre[0],targetcentre[1],'ko',markersize=100,markerfacecolor='none')    
 
 # Saves out field to test source quantification methods
 #test_outfile = 'sourceestimationtestfile.npz'
@@ -405,7 +442,6 @@ if odiacdatapoints > 0:
 #sys.exit()
     
 
-        
 #-------------------------             
 #  ___ __  __ _____                  _   _               _ 
 # |_ _|  \/  | ____|  _ __ ___   ___| |_| |__   ___   __| |
@@ -416,19 +452,113 @@ if odiacdatapoints > 0:
 # Integrated mass enhancement
 #-------------------------             
 
-meanwindspeed = 5    # m/s
+#
+# Further define the city signal
+#
+ind = np.where(odiacco2flux <= np.nanpercentile(odiacco2flux,75))
+newgrid[ind]     = np.nan
+odiacco2flux[ind] = np.nan
+odiac_xco2[ind]   = np.nan
+UWIND[ind]        = np.nan
+VWIND[ind]        = np.nan
+aircolumngrid[ind] = np.nan
+
+
+meanwindspeed = 5  # m/s
 Ldimension    = 10 # km
+ODIACEMISSION, OCO3_IME = calc_ime(odiacco2flux,newgrid,aircolumngrid,meanwindspeed,Ldimension)
 
-print(np.shape(odiacco2flux),np.shape(newgrid),np.shape(xco2use))
+print('--', ODIACEMISSION, OCO3_IME, meanwindspeed)
 
-ODIACEMISSION, OCO3_IME = calc_ime(odiacco2flux,newgrid,meanwindspeed,Ldimension)
+#
+# calculate city budgets within concentric circles to determine some measure of uncertainty
+#
+dist = np.zeros([len(ODIAClatsDOMAIN),len(ODIAClonsDOMAIN)])
+dist[:,:] = np.nan
 
-imestring   = writescreenstring(OCO3_IME,0)
-odiacstring = writescreenstring(ODIACEMISSION,0)
-ypos = np.mean(useextent[2:3]); xpos = np.mean(useextent[0:1])
-dy = np.abs(useextent[2]-useextent[3]); dx = np.abs(useextent[1]-useextent[0])
-ax1.annotate('OCO-3 IME: '+imestring,(xpos,ypos+0.25*dy),horizontalalignment='left',fontsize=8, color='black')
-ax1.annotate('ODIAC: '+odiacstring,(xpos,ypos+0.15*dy),horizontalalignment='left',fontsize=8, color='black')
+print(np.shape(dist),np.shape(odiacco2flux))
+print(np.shape(X),np.shape(Y))
+
+for ii in np.arange(len(ODIAClatsDOMAIN)):
+    for jj in np.arange(len(ODIAClonsDOMAIN)):
+        dist[ii,jj] = haversine([targetcentre[1],targetcentre[0]],[ODIAClatsDOMAIN[ii],ODIAClonsDOMAIN[jj]])
+
+
+imgax6 = ax6.pcolor(X,Y,dist,\
+                transform=ccrs.PlateCarree())
+ax6.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+              linewidth=2, color='gray', alpha=0.5, linestyle='--')
+ax6.contour(X,Y,dist,\
+            transform=ccrs.PlateCarree())
+plt.colorbar(imgax6,ax=ax6,extend='both',orientation='horizontal',label='Distance from centre point [km]')
+
+ax6.plot(targetcentre[0],targetcentre[1],'ko',markersize=10,markerfacecolor='none')
+ax6.plot(targetcentre[0],targetcentre[1],'ko',markersize=20,markerfacecolor='none')
+ax6.plot(targetcentre[0],targetcentre[1],'ko',markersize=40,markerfacecolor='none')
+ax6.plot(targetcentre[0],targetcentre[1],'ko',markersize=80,markerfacecolor='none')
+ax6.plot(targetcentre[0],targetcentre[1],'ko',markersize=100,markerfacecolor='none')   
+
+plt.savefig(cityname+'_maps.png')
+        
+
+#
+# Loop over distance to get uncertainties
+#
+        
+Ldimension = np.arange(50)*10 + 10
+
+Ltest  = []
+BUtest = []
+TDtest = []
+
+for ii in np.arange(len(Ldimension)):
+    Ldimension_use = Ldimension[ii]
+
+    #sample_mask = np.zeros([len(ODIAClonsDOMAIN),len(ODIAClatsDOMAIN)])
+    #sample_mask[:,:] = np.nan
+    ind = np.where(dist <= Ldimension_use/2.)
+    #sample_mask[ind] = 1
+
+    wind_mask = np.zeros([len(ODIAClatsDOMAIN),len(ODIAClonsDOMAIN)])
+    wind_mask[:,:] = np.nan
+    wind_mask[ind] = np.sqrt(UWIND[ind]**2 + VWIND[ind]**2)
+    meanwindspeed = np.nanmean(wind_mask)
+
+    odiac_mask = np.zeros([len(ODIAClatsDOMAIN),len(ODIAClonsDOMAIN)])
+    odiac_mask[:,:] = np.nan
+    odiac_mask[ind] = odiacco2flux[ind]
+
+    oco3_mask = np.zeros([len(ODIAClatsDOMAIN),len(ODIAClonsDOMAIN)])
+    oco3_mask[:,:] = np.nan
+    oco3_mask[ind] = newgrid[ind]
+    #oco3_mask[ind] = odiac_xco2[ind]    
+
+    ODIACEMISSION, OCO3_IME = calc_ime(odiac_mask,oco3_mask,aircolumngrid,meanwindspeed,Ldimension_use)
+
+    #print(Ldimension_use, ODIACEMISSION, OCO3_IME, meanwindspeed)
+
+    Ltest.append(Ldimension_use); BUtest.append(ODIACEMISSION); TDtest.append(OCO3_IME)
+    
+
+#plt.figure(20)
+#plt.hist(oco3_mask)
+#plt.show()
+#sys.exit()
+
+#imestring   = writescreenstring(OCO3_IME,0)
+#odiacstring = writescreenstring(ODIACEMISSION,0)
+#ypos = np.mean(useextent[2:3]); xpos = np.mean(useextent[0:1])
+#dy = np.abs(useextent[2]-useextent[3]); dx = np.abs(useextent[1]-useextent[0])
+#ax1.annotate('OCO-3 IME: '+imestring,(xpos,ypos+0.25*dy),horizontalalignment='left',fontsize=8, color='black')
+#ax1.annotate('ODIAC: '+odiacstring,(xpos,ypos+0.15*dy),horizontalalignment='left',fontsize=8, color='black')
+
+plt.figure(2,figsize=(6,6))
+plt.plot(Ltest,BUtest,'ko-')
+plt.plot(Ltest,TDtest,'ro-')
+plt.xlabel('Distance L (circle diameter) (km)')
+plt.ylabel('Source estimate [TgCO$_2$/yr]')
+
+plt.savefig(cityname+'_IME.png')
 
 #-------------------------             
 # Ad hoc emission estimate for urban core
@@ -545,7 +675,7 @@ rho_air = 2.69e25          # molec/m3
 #C1[C1ind] = np.nan
 
 
-#plotdata(ax4,fig1,x,y,extent,C1,uselevels,v_min,v_max,'tmp',usecontour=0,no2flag=0)    
+#plotdata(ax4,fig1,x,y,extent,C1,uselevels,v_min,v_max,'tmp',usecontour=0,no2flag1=0)    
 
 #levels=uselevels,\
 
@@ -565,8 +695,7 @@ rho_air = 2.69e25          # molec/m3
 #gl3.ylabels_right = False
 #
 
-ax6.plot(targets[0][0],targets[0][1],'ko',markersize=10,markerfacecolor='none')
-ax6.plot(targets[1][0],targets[1][1],'ko',markersize=10,markerfacecolor='none')
+
 
     
     
