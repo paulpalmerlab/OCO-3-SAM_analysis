@@ -31,19 +31,22 @@ def readxco2(InFileName):
     brdf_reflectance_o2          = np.array(data_l2['/BRDFResults/brdf_reflectance_o2'])
     brdf_reflectance_slope_o2    = np.array(data_l2['/BRDFResults/brdf_reflectance_slope_o2'])
     brdf_reflectance_weak_co2    = np.array(data_l2['/BRDFResults/brdf_reflectance_weak_co2'])
-    brdf_reflectance_strong_co2  = np.array(data_l2['/BRDFResults/brdf_reflectance_strong_co2'])    
+    brdf_reflectance_slope_strong_co2  = np.array(data_l2['/BRDFResults/brdf_reflectance_slope_strong_co2'])    
     aerosol_total_aod            = np.array(data_l2['/AerosolResults/aerosol_total_aod'])
     surface_pressure_fph         = np.array(data_l2['/RetrievalResults/surface_pressure_fph'])
     surface_pressure_apriori_fph = np.array(data_l2['/RetrievalResults/surface_pressure_apriori_fph'])
     co2_vertical_gradient_delta  = np.array(data_l2['/RetrievalResults/co2_vertical_gradient_delta'])
     aerosol_aod                  = np.array(data_l2['/AerosolResults/aerosol_aod'])
-    post_o2_column               = np.array(data_l2['/RetrievalResults/retrieved_o2_column'])
+    post_o2_column               = np.array(data_l2['/RetrievalResults/retrieved_o2_column']) # molec/m2
 
     air_column = np.zeros(len(post_o2_column))
-    air_column = np.divide(post_o2_column,0.20947)
+    air_column = np.divide(post_o2_column,0.20947) # molec/m2
+    air_column = np.divide(air_column,1e4)         # molec/cm2
 
+    # Pascals
     dP_fph = np.subtract(surface_pressure_fph, surface_pressure_apriori_fph)
-
+    dP_fph = np.divide(dP_fph,100.)
+    
     # NOTES from Rob:
     # 
     # The AODs are a pain to read. You’ll notice how
@@ -88,9 +91,9 @@ def readxco2(InFileName):
                    ((h2o_ratio_idp >= 0.8) & (h2o_ratio_idp <=1.025))    & \
                    ((brdf_reflectance_o2 >= 0) & (brdf_reflectance_o2 <= 0.5)) & \
                    ((brdf_reflectance_slope_o2 >= -0.00006) & (brdf_reflectance_slope_o2 <= 0)) & \
-                   #((brdf_reflectance_strong_co2 >= -0.00014) & (brdf_reflectance_strong_co2 <= 0.00035)) & \
-                   #((aerosol_total_aod >= 0.0) & (aerosol_total_aod <= 0.15 )) & \
-                   #((dP_fph >= -12) & (dP_fph <= 12)) & \
+                   ((brdf_reflectance_slope_strong_co2 >= -0.00014) & (brdf_reflectance_slope_strong_co2 <= 0.00035)) & \
+                   ((aerosol_total_aod >= 0.0) & (aerosol_total_aod <= 0.15 )) & \
+                   ((dP_fph >= -12) & (dP_fph <= 12)) & \
                    ((total_aod_strat >= 0) & (total_aod_strat <= 0.025)) & \
                    ((total_aod_water >= 0) & (total_aod_water <= 0.035)))
 
@@ -112,11 +115,11 @@ def readxco2(InFileName):
     aircolumn  = air_column[ind]
     surface_pressure_fph = surface_pressure_fph[ind]
 
-    return xco2use, latuse, lonuse, obsmonth, surface_pressure_fph, aircolumn
+    return xco2use, latuse, lonuse, obsmonth, surface_pressure_fph/100., aircolumn
     
 
 def convertodiacemissionunits(inQ,INmonth):
-    #input units are from ODIAC - tonnes C/1km box/month
+    #incoming units of ODIAC - tonnes C/1km box/month
     #for the Gaussian plume model we want g/s/grid square
 
     # Need to account for area
@@ -137,6 +140,10 @@ def convertodiacemissionunits(inQ,INmonth):
 
 def get_xco2_from_emission(INemission,INmonth,INboundarylayerheight):
 
+    #
+    # incoming unit is gCO2/1km2/s
+    #
+    
     monthday = [31,28,31,30,31,30,\
                 31,31,30,31,30,31]
 
@@ -146,24 +153,37 @@ def get_xco2_from_emission(INemission,INmonth,INboundarylayerheight):
     rho_air = 2.69e25                       # molec/m^3 NOTE FIXED NEEDS ADJUSTING RE SURFACE PRESSURE
     rho_air = np.multiply(rho_air,1e9)      # molec/km^3    
     
-    # NOTE: ODIAC described as tonnes C/1km box/month
+
+    INemission = np.multiply(INemission,3600)                  # grams CO2/1 km box/hour
     
-    INemission = np.multiply(INemission,44/12.)              # tonnes CO2/1 km box/month
-
-    dayhourconversion = monthday[INmonth-1]*24               # days/month * hours/day = hours/month
-
-    INemission = np.divide(INemission,dayhourconversion)     # tonnes CO2/1 km box/hour
-    
-    INemission = np.multiply(INemission,1e6)                 # grams CO2/1 km box/hour
-
     INemission = np.divide(INemission,44)                    # mole CO2/1 km box/hour
 
     INemission = np.multiply(INemission,Av)                  # molec CO2/1 km box/hour
     
-    #INemission = np.divide(INemission,INboundarylayerheight) # molec CO2/km^3
+    INemission = np.divide(INemission,INboundarylayerheight) # molec CO2/km^3
 
     return np.divide(INemission,rho_air)
     
+
+
+def get_emission_from_xco2(INXCO2,INDayInMonth,INboundarylayerheight):
+
+    Av = 6.023e23 # Avagrado's number molecules/mole
+
+    # number density of air
+    rho_air = 2.69e25                       # molec/m^3 NOTE FIXED NEEDS ADJUSTING RE SURFACE PRESSURE
+    rho_air = np.multiply(rho_air,1e9)      # molec/km^3    
+
+    step1 = np.multiply(INXCO2,rho_air)                      # molec CO2/km3
+    step2 = np.multiply(step1,INboundarylayerheight)         # molec CO2/km2
+    step3 = np.divide(step2,Av)                              # mole CO2/km2
+    step4 = np.multiply(step3,44)                            # grams CO2/1 km box/hour
+    
+    Q = step4 * 24 * INDayInMonth
+    
+    return Q
+
+
 
 def readodiac(monthchar):
 
@@ -174,14 +194,9 @@ def readodiac(monthchar):
     import tifffile as tf
 
     image_stack = tf.imread(filename)
-    #print(image_stack.shape)
-    #print(image_stack.dtype)
 
     nrows = len(image_stack)
     ncols = len(image_stack[1])
-
-    #print(nrows,ncols)
-    #sys.exit()
 
     Unit  = 'Tonne Carbon/cell/month'
 
@@ -192,14 +207,6 @@ def readodiac(monthchar):
 
     ind = np.where(image_stack == 0.)
     image_stack[ind] = np.nan
-
-    #Focus on target region
-
-    #indlon = np.where((ODIAClons >= extent[0]) & (ODIAClons <= extent[1]))
-    #indlat = np.where((ODIAClats >= extent[2]) & (ODIAClats <= extent[3]))
-
-    #image_stack = np.squeeze(image_stack[:,indlon])
-    #image_stack = np.squeeze(image_stack[indlat,:])
 
     return image_stack, ODIAClons, ODIAClats
 
@@ -308,54 +315,85 @@ def filterandconvertno2(no2,latno2,lonno2,qa):
 
     return no2[no2ind], latno2[no2ind], lonno2[no2ind]
 
+
 def writescreenstring(a, b): return '{:6.1f}'.format(a)+'$\pm$'+'{:6.1f}'.format(b)+' TgCO2/yr'    
 
 
-def calc_ime(odiacco2flux,xco2grid,aircolumngrid,MEANWINDSPEED,Ldimension):
+def centremass(inlons,inlats,invar):
+    
+    nlon = len(inlons); nlat = len(inlats)
+    ysum = 0.; xsum = 0.
+    for ii in np.arange(nlat):
+        for jj in np.arange(nlon):
+            if np.isnan(invar[ii,jj]) == 0:
+                xsum += np.multiply(invar[ii,jj],inlons[jj])
+                ysum += np.multiply(invar[ii,jj],inlats[ii])
+    xcentre = xsum / np.nansum(invar)
+    ycentre = ysum / np.nansum(invar)
+
+    return xcentre, ycentre
+
+
+
+
+
+
+
+
+
+
+def calc_ime(odiacco2flux,xco2gridin,aircolumngrid,MEANWINDSPEED,Ldimension,DaysInMonth):
 
     # ODIAC CO2 fluxes have units of gCO2/km2/s
     # Return TgCO2/yr
 
     Mw_air = 28.9628
     Mw_co2 = 44.01
-    Mw_ratio = Mw_co2/Mw_air
+    Mw_C   = 12.
+    Mw_ratio = Mw_C/Mw_air
     Av = 6.023e23                           # Avagrado's number molecules/mole        
         
-    xco2grid      = np.reshape(xco2grid,-1)
+    xco2grid      = np.reshape(xco2gridin,-1)
     aircolumngrid = np.reshape(aircolumngrid,-1)
 
     ind = np.where(~np.isnan(xco2grid) & (xco2grid>0)) # remove the second criterion when L2 filter is correctly applied
     xco2grid = xco2grid[ind]
     aircolumngrid = aircolumngrid[ind]
 
-    
     # Convert DXCO2 (ppb) to mole fraction
     tmp = np.divide(xco2grid,1e6)
 
     # Convert molec/cm2 column air density to kg/m2
     airrho = np.divide(aircolumngrid,Av) # moles/cm2
-    airrho = np.multiply(airrho,Mw_air)   # g/cm2
+    airrho = np.multiply(airrho,Mw_air)  # g/cm2
     airrho = np.divide(airrho,1e3)       # kg/cm2
     airrho = np.multiply(airrho,1e4)     # kg/m2
 
     co2rho = np.multiply(airrho,tmp)     # kg/m2
-    co2rho = np.multiply(Mw_ratio,airrho)# kg CO2/m2
+    co2rho = np.multiply(Mw_ratio,co2rho)# kg C/m2
+
+    co2rho = np.multiply(co2rho,1e6) # kg C/km2
     
     # MEANWINDSPEED in m/s - used 1e3 to convert to km/s
     alpha1 = 1.0; alpha2 = 0.6
     U_eff = alpha1 * np.log10(MEANWINDSPEED) + alpha2
 
-    #U_eff = MEANWINDSPEED
+    U_eff = MEANWINDSPEED
 
     #print(np.nansum(tmp)*3600*24*365/1e12,U_eff,Ldimension*1000)
     
     # L = dimension of domain
-    IME = np.nansum(co2rho)*3600*24*365/1e12 * U_eff/(Ldimension*1000)
+    area = 1. #km2
 
-    return np.nansum(odiacco2flux)*3600*24*365/1e12, IME
+    integrand = np.multiply(co2rho,area)
+    IME = np.nansum(integrand)*3600*24*DaysInMonth/1e12 * U_eff/Ldimension
+
+    return np.nansum(odiacco2flux)* 3600 * 24 * DaysInMonth / 1e12, IME
 
 
-def sourcepixelmethod(uwind,vwind,Ldimension,dxco2,surfacepressure):
-    #convert xco2 to Q
-    U = np.sqrt(uwind**2 + vwind**2)
-    return U*Ldimension*dxco2/9.81
+# input  U = m/s; W = m; spress = Pa; dXCO2 = ppm
+# output kg CO2/s
+def sourcepixelmethod(dXCO2,W,U,spress):
+    return (0.044/0.029)*U*W*spress*dXCO2/9.81
+
+
